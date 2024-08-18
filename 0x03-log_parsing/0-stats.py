@@ -1,39 +1,50 @@
 #!/usr/bin/python3
-"""
-Log parsing
-"""
-
 import sys
+import signal
 
-if __name__ == '__main__':
+# Global variables to store total file size and counts of each status code
+total_size = 0
+status_codes = {200: 0, 301: 0, 400: 0, 401: 0, 403: 0, 404: 0, 405: 0, 500: 0}
 
-    filesize, count = 0, 0
-    codes = ["200", "301", "400", "401", "403", "404", "405", "500"]
-    stats = {k: 0 for k in codes}
+def print_stats():
+    """
+    Prints the accumulated metrics.
+    """
+    print(f"File size: {total_size}")
+    for code in sorted(status_codes):
+        if status_codes[code] > 0:
+            print(f"{code}: {status_codes[code]}")
 
-    def print_stats(stats: dict, file_size: int) -> None:
-        print("File size: {:d}".format(filesize))
-        for k, v in sorted(stats.items()):
-            if v:
-                print("{}: {}".format(k, v))
+def signal_handler(sig, frame):
+    """
+    Handles the SIGINT (CTRL+C) signal and prints the metrics before exiting.
+    """
+    print_stats()
+    sys.exit(0)
 
-    try:
-        for line in sys.stdin:
-            count += 1
-            data = line.split()
+# Register the signal handler for SIGINT
+signal.signal(signal.SIGINT, signal_handler)
+
+# Process the input lines from stdin
+try:
+    line_count = 0
+    for line in sys.stdin:
+        line_count += 1
+        parts = line.split()
+        if len(parts) > 6:
             try:
-                status_code = data[-2]
-                if status_code in stats:
-                    stats[status_code] += 1
-            except BaseException:
-                pass
-            try:
-                filesize += int(data[-1])
-            except BaseException:
-                pass
-            if count % 10 == 0:
-                print_stats(stats, filesize)
-        print_stats(stats, filesize)
-    except KeyboardInterrupt:
-        print_stats(stats, filesize)
-        raise
+                file_size = int(parts[-1])
+                status_code = int(parts[-2])
+                total_size += file_size
+                if status_code in status_codes:
+                    status_codes[status_code] += 1
+            except ValueError:
+                continue
+
+        if line_count % 10 == 0:
+            print_stats()
+
+except KeyboardInterrupt:
+    print_stats()
+    raise
+
